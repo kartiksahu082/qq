@@ -1,14 +1,15 @@
+import express from "express";
+import cors from 'cors';
 
-import express from "express"
-import cors from 'cors'
+const app = express();
+app.use(cors());  // CORS configuration
+app.use(express.json());  // Parse incoming JSON requests
 
-const app=express()
-app.use(cors())
+const port = process.env.PORT || 3000;
 
-const port=process.env.PORT || 3000
-
-app.get('/quote',(req,res)=>{
-    const quote=[
+// Quote endpoint returning a list of quotes
+app.get('/quote', (req, res) => {
+    const quote = [
         {
             "text": "The only way to do great work is to love what you do.",
             "author": "Steve Jobs"
@@ -49,15 +50,18 @@ app.get('/quote',(req,res)=>{
             "text": "The best way to predict your future is to create it.",
             "author": "Abraham Lincoln"
         }
-    ]
+    ];
     
-    res.send(quote)
-})
+    // Sending the quote array as a response with status code 200 (OK)
+    res.status(200).send(quote);
+});
 
-app.get('/',(req,res)=>{
-    res.send('hello')
-})
+// Default home route
+app.get('/', (req, res) => {
+    res.status(200).send('Hello!');
+});
 
-app.listen(port,()=>{
-    console.log(`Serve at https://localhost:${port}`)
-})
+// Start the server
+app.listen(port, () => {
+    console.log(`Server is running at http://localhost:${port}`);
+});

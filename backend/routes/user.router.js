@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { registerUser ,login,logout} from "../controllers/User.controller.js";
+import { registerUser ,signinuser,logout} from "../controllers/User.controller.js";
 import upload from "../middleware/multer.middleware.js";
 import { verifyJwt } from "../middleware/logout.user.js";
 
@@ -17,7 +17,7 @@ router.route("/register").post(
   registerUser
 );
 
-router.route("/login").post(login)
+router.route("/login").post(signinuser)
 
 router.route("logout").post(verifyJwt,logout)
 

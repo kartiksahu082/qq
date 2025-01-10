@@ -1,30 +1,29 @@
-import asyncHandler from "../asyncHandler.js";
-import ApiError from "../modle/ApiError.js";
-import User from "../modle/user.modle.js";
-import uploadFile from '../modle/cloudnary.js';
+import asyncHandler from "../asyncHandler.js";  // Correct import
+import ApiError from "../model/ApiError.js";  // Fixed typo in "model"
+import User from "../model/user.model.js";  // Fixed typo in "model"
+import uploadFile from '../model/cloudnary.js';  // Ensure the path is correct
+
+import bcrypt from 'bcryptjs';  // bcrypt for hashing passwords
 
 // Function to match password
-const matchPassword = async (password) => {
-  // Assuming password is hashed and using bcrypt for password comparison
-  // You need to implement your own password matching logic here
-  return true;  // Replace with actual password check logic
-}
+const matchPassword = async (password, hashedPassword) => {
+  return bcrypt.compare(password, hashedPassword);
+};
 
 // Function to generate refresh and access tokens
 const refreshAndAccessTokenGenerator = async (userId) => {
   try {
     const user = await User.findById(userId);
-    const accesstoken = user.accesstoken;
-    const refreshtoken = user.refreshtoken;
+    const accessToken = user.accessToken;  // Correct token name
+    const refreshToken = user.refreshToken;
 
-    // Set refreshtoken again and save user
-    user.refreshtoken = refreshtoken;
+    user.refreshToken = refreshToken;  // Set refresh token
     await user.save({ validateBeforeSave: true });
 
-    return { refreshtoken, accesstoken };
+    return { refreshToken, accessToken };
   } catch (err) {
     console.log(err);
-    throw new ApiError(500, 'Error generating tokens');
+    throw new ApiError(500, `Error generating tokens: ${err.message}`);
   }
 };
 
@@ -44,95 +43,123 @@ const signinuser = asyncHandler(async (req, res) => {
     throw new ApiError(403, 'User not found');
   }
 
-  const correctpass = await matchPassword(password);
+  const correctPass = await matchPassword(password, user.password);
 
-  if (!correctpass) {
+  if (!correctPass) {
     throw new ApiError(403, 'Incorrect password');
   }
 
-  const { refreshtoken, accesstoken } = await refreshAndAccessTokenGenerator(user._id);
-
-  const loginuser = await User.findById(user._id).select("-password -refreshtoken");
+  const { refreshToken, accessToken } = await refreshAndAccessTokenGenerator(user._id);
 
   const options = {
     httpOnly: true,
-    secure: true
+    secure: process.env.NODE_ENV === 'production',  // Only secure cookies in production
   };
 
-  return res.status(200).cookie('refreshtoken', refreshtoken, options).json({
-    refreshtoken
-  }, "User logged in");
+  return res.status(200)
+    .cookie('accessToken', accessToken, options)  // Store access token in cookie
+    .cookie('refreshToken', refreshToken, options)  // Store refresh token in cookie
+    .json({
+      success: true,
+      message: "User logged in",
+      accessToken,
+      refreshToken
+    });
 });
 
 // Register function
 const registerUser = asyncHandler(async (req, res) => {
-  console.log("1111111:", req.body);
-
   const { name, email, password } = req.body;
 
-  // Check for empty fields
-  if ([email, name, password].some((item) => item?.trim() === "")) {
-    throw new ApiError(403, "This field is empty");
+  // Ensure all fields are provided and are not undefined or null
+  if (!name || !email || !password) {
+    throw new ApiError(400, "All fields (name, email, password) are required.");
+  }
+
+  // Ensure fields are strings and trim them
+  const trimmedName = typeof name === 'string' ? name.trim() : '';
+  const trimmedEmail = typeof email === 'string' ? email.trim() : '';
+  const trimmedPassword = typeof password === 'string' ? password.trim() : '';
+
+  // Validate if fields are still non-empty after trimming
+  if (!trimmedName || !trimmedEmail || !trimmedPassword) {
+    throw new ApiError(400, "All fields (name, email, password) must not be empty.");
+  }
+
+  // Validate email format
+  const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
+  if (!emailRegex.test(trimmedEmail)) {
+    throw new ApiError(400, "Invalid email format.");
   }
 
   // Check if user already exists
   const existingUser = await User.findOne({
-    $or: [{ name }, { email }]
+    $or: [{ name: trimmedName }, { email: trimmedEmail }]
   });
 
   if (existingUser) {
-    throw new ApiError(402, "User already exists");
+    throw new ApiError(400, "User already exists");
   }
 
-  // Upload avatar and cover image
+  // Check for file uploads (avatar and cover image)
   const avatarLocal = req.files?.avatar[0]?.path;
   const coverPageLocal = req.files?.coverimg[0]?.path;
 
   if (!avatarLocal) {
-    throw new ApiError(402, 'Avatar image not found');
+    throw new ApiError(400, 'Avatar image is required.');
   }
 
+  // Upload avatar to Cloudinary
   const avatarOnCloudinary = await uploadFile(avatarLocal);
 
   if (!avatarOnCloudinary) {
     throw new ApiError(403, 'Avatar upload failed');
   }
 
-  // Create the user
+  // Hash the password before saving
+  const hashedPassword = await bcrypt.hash(trimmedPassword, 10);
+
+  // Create new user
   const user = await User.create({
-    name,
-    email,
-    password, // Assuming password should be hashed before storing
+    name: trimmedName,
+    email: trimmedEmail,
+    password: hashedPassword,
     avatar: avatarOnCloudinary,
   });
 
-  // Fetch created user
-  const createdUser = await User.findById(user._id).select("password");
+  // Return created user (without password)
+  const createdUser = await User.findById(user._id).select("-password");
 
   if (!createdUser) {
-    throw new ApiError(501, 'User not found');
+    throw new ApiError(500, 'User creation failed');
   }
 
   return res.status(201).json({
+    success: true,
     createdUser
   });
 });
 
+
 // Logout function
-const logout = asyncHandler(async (req, res, next) => {
+const logout = asyncHandler(async (req, res) => {
+  // Remove the accessToken from the user
   await User.findByIdAndUpdate(req.user._id, {
-    $set: {
-      accesstoken: undefined
-    }
+    $set: { accessToken: undefined }
   }, { new: true });
 
   const options = {
     httpOnly: true,
-    secure: true
+    secure: process.env.NODE_ENV === 'production',  // Only secure cookies in production
   };
 
-  res.status(200).clearCookie('accesstoken').clearCookie('refreshtoken').json(new ApiResponse(200, {}, "User logged out"));
+  res.status(200)
+    .clearCookie('accessToken')  // Clear access token cookie
+    .clearCookie('refreshToken')  // Clear refresh token cookie
+    .json({
+      success: true,
+      message: "User logged out"
+    });
 });
 
-// Export functions
 export { registerUser, signinuser, logout };

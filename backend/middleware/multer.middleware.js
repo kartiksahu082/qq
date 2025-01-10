@@ -5,10 +5,11 @@ const storage = multer.diskStorage({
       cb(null, '/backend/myupload/')
     },
     filename: function (req, file, cb) {
-      cb(null, file.fieldname + '-' + uniqueSuffix)
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);  // Defined uniqueSuffix
+      cb(null, file.fieldname + '-' + uniqueSuffix);
     }
-  })
-  
-  const upload = multer({ storage: storage })
+})
 
-  export default upload;
+const upload = multer({ storage: storage })
+
+export default upload;

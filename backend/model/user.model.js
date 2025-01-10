@@ -32,15 +32,13 @@ const userSchema = new mongoose.Schema({
 
 // Pre-save hook to hash password before saving
 userSchema.pre('save', function (next) {
-  // If the password is not modified, skip hashing
   if (!this.isModified('password')) {
     return next();
   }
 
-  // Hash the password before saving it
   bcrypt.hash(this.password, 10, (err, hashedPassword) => {
     if (err) return next(err);
-    this.password = hashedPassword; // Store the hashed password
+    this.password = hashedPassword;
     next();
   });
 });
@@ -68,5 +66,4 @@ userSchema.methods.generateRefreshToken = function () {
   );
 };
 
-// Exporting the User model correctly using default export
 export default mongoose.model('User', userSchema);
