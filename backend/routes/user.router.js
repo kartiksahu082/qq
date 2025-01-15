@@ -1,25 +1,26 @@
 import { Router } from "express";
-import { registerUser ,signinuser,logout} from "../controllers/User.controller.js";
+import { registerUser, signinuser, logout } from "../controllers/User.controller.js";
 import upload from "../middleware/multer.middleware.js";
 import { verifyJwt } from "../middleware/logout.user.js";
 
 const router = Router();
 
+// Register User Route
 router.route("/register").post(
-  upload.fields([
-    {
-      avatar: {
-        name: "avatar",
-        maxCount: 2,
-      }
-    },
-  ]),
+  // upload.fields([
+  //   { name: "avatar", maxCount: 2 }, // Correct structure
+  // ]),
   registerUser
 );
 
-router.route("/login").post(signinuser)
+// Login Route
+router.route("/login").post(signinuser);
 
-router.route("logout").post(verifyJwt,logout)
+router.post('/test', (req, res) => {
+  res.send('Test route works!');
+});
 
-
+router.post('/test', (req, res) => res.send('Test route works!'));
+// Logout Route
+router.route("/logout").post(verifyJwt, logout); // Added leading '/'
 export default router;

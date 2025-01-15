@@ -16,4 +16,7 @@ app.use(express.static('public'));
 
 app.use('/app/v1/users', useRouter); 
 
+app.post('/test', (req, res) => res.send('Test route works!'));
+
+
 export default app; 
